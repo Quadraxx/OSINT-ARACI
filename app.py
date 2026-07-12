@@ -123,6 +123,14 @@ class OSINTApp(ctk.CTk):
         self.results_text = ctk.CTkTextbox(self.results_frame, wrap="word", state="disabled")
         self.results_text.grid(row=1, column=0, padx=10, pady=(0, 10), sticky="nsew")
 
+        self.results_text.tag_config("success", foreground="#4CAF50")
+        self.results_text.tag_config("error", foreground="#F44336")
+        self.results_text.tag_config("warning", foreground="#FF9800")
+        self.results_text.tag_config("info", foreground="#2196F3")
+        self.results_text.tag_config("section_sep", foreground="#555555")
+        self.results_text.tag_config("section_empty", foreground="", spacing1=0, spacing2=0)
+        self.results_text.tag_config("section_header", foreground="#FFFFFF")
+
         self.main_frame.grid_rowconfigure(4, weight=1)
         self.current_module = None
 
@@ -216,14 +224,6 @@ class OSINTApp(ctk.CTk):
             else:
                 tag = "info"
             self.results_text.insert("end", message + "\n", tag)
-
-        self.results_text.tag_config("success", foreground="#4CAF50")
-        self.results_text.tag_config("error", foreground="#F44336")
-        self.results_text.tag_config("warning", foreground="#FF9800")
-        self.results_text.tag_config("info", foreground="#2196F3")
-        self.results_text.tag_config("section_sep", foreground="#555555")
-        self.results_text.tag_config("section_empty", foreground="", spacing1=0, spacing2=0)
-        self.results_text.tag_config("section_header", foreground="#FFFFFF", font=ctk.CTkFont(size=13, weight="bold"))
 
         self.results_text.configure(state="disabled")
 
