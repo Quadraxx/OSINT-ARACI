@@ -8,3 +8,4 @@ customtkinter==6.0.0
 phonenumbers==9.0.34
 email-validator==2.3.0
 ddgs==9.14.4
+google==3.0.0

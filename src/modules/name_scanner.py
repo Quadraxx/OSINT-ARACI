@@ -1,52 +1,44 @@
 import re
 from ddgs import DDGS
 
-
-TR_NAME_PATTERNS = [
-    (r"([A-ZÇĞİÖŞÜ][a-zçğıöşü]+)\s+([A-ZÇĞİÖŞÜ][a-zçğıöşü]+(?: [A-ZÇĞİÖŞÜ][a-zçğıöşü]+)?)", "Ad Soyad"),
-]
-
 CONTEXT_PATTERNS = [
-    r"(?:ad(?:ı|ı|?)?|isim|isimli|adlı|kullanıcı)\s*[:\-]?\s*([A-ZÇĞİÖŞÜ][a-zçğıöşü]+(?:\s+[A-ZÇĞİÖŞÜ][a-zçğıöşü]+){1,3})",
-    r"(?:iletişim|yetkili|irtibat)\s*[:\-]?\s*([A-ZÇĞİÖŞÜ][a-zçğıöşü]+(?:\s+[A-ZÇĞİÖŞÜ][a-zçğıöşü]+){1,3})",
-    r"sahibi\s*[:\-]?\s*([A-ZÇĞİÖŞÜ][a-zçğıöşü]+(?:\s+[A-ZÇĞİÖŞÜ][a-zçğıöşü]+){1,3})",
-    r"ilan\s*[:\-]?\s*([A-ZÇĞİÖŞÜ][a-zçğıöşü]+(?:\s+[A-ZÇĞİÖŞÜ][a-zçğıöşü]+){1,3})",
+    (r"(?:ad[ıi]|isim|isimli|adlı|kullanıcı|yetkili|irtibat|iletişim)\s*[:\-]?\s*([A-ZÇĞİÖŞÜ][a-zçğıöşü]+(?:\s+[A-ZÇĞİÖŞÜ][a-zçğıöşü]+){1,3})", "Orta"),
+    (r"sahibi\s*[:\-]?\s*([A-ZÇĞİÖŞÜ][a-zçğıöşü]+(?:\s+[A-ZÇĞİÖŞÜ][a-zçğıöşü]+){1,3})", "Orta"),
+    (r"ilan\s*[:\-]?\s*([A-ZÇĞİÖŞÜ][a-zçğıöşü]+(?:\s+[A-ZÇĞİÖŞÜ][a-zçğıöşü]+){1,3})", "Orta"),
+    (r"([A-ZÇĞİÖŞÜ][a-zçğıöşü]+)\s+([A-ZÇĞİÖŞÜ][a-zçğıöşü]+(?:\s+[A-ZÇĞİÖŞÜ][a-zçğıöşü]+)?)\s*(?:tel|telefon|gsm|cep|num)", "Düşük"),
 ]
 
 SITE_NAMES = {
     "facebook.com": "Facebook",
     "instagram.com": "Instagram",
-    "twitter.com": "Twitter / X",
-    "x.com": "Twitter / X",
+    "twitter.com": "X / Twitter",
+    "x.com": "X / Twitter",
     "linkedin.com": "LinkedIn",
     "sahibinden.com": "Sahibinden",
     "hepsiburada.com": "Hepsiburada",
     "n11.com": "n11",
-    "letgo.com": "Letgo",
     "arabam.com": "Arabam",
     "donanimhaber.com": "DonanımHaber",
     "eksisozluk.com": "Ekşi Sözlük",
+    "letgo.com": "Letgo",
+    "pinterest.com": "Pinterest",
+    "medium.com": "Medium",
 }
 
 
-def _extract_names(text):
-    names = []
-    for pattern, label in CONTEXT_PATTERNS:
-        matches = re.findall(pattern, text, re.IGNORECASE)
-        for m in matches:
+def _extract(text):
+    found = []
+    for pattern, confidence in CONTEXT_PATTERNS:
+        for m in re.findall(pattern, text, re.IGNORECASE):
+            if isinstance(m, tuple):
+                m = " ".join(m)
             m = m.strip()
-            if len(m) > 4 and len(m) < 60:
-                names.append((m, label, "Orta"))
-    for pattern, label in TR_NAME_PATTERNS:
-        matches = re.findall(pattern, text)
-        for m in matches:
-            full = f"{m[0]} {m[1]}"
-            if 5 < len(full) < 60:
-                names.append((full, label, "Düşük"))
-    return names
+            if 4 < len(m) < 60 and not any(c.isdigit() for c in m):
+                found.append((m, confidence))
+    return found
 
 
-def _classify_url(url):
+def _site_label(url):
     for domain, label in SITE_NAMES.items():
         if domain in url.lower():
             return label
@@ -59,61 +51,41 @@ class NameScanner:
 
     def scan(self, number_formats, callback=None):
         results = []
+        queries = list(dict.fromkeys(number_formats))[:4]
+        all_hits = []
 
-        if not number_formats:
-            results.append(("Uyarı", "  ℹ️ Arama yapılamadı: format eksik"))
-            if callback:
-                callback(results)
-            return results
-
-        queries = list(dict.fromkeys(number_formats))
-        all_names = []
-
-        for q in queries[:4]:
+        for q in queries:
             try:
-                ddgs = DDGS()
-                search_results = list(ddgs.text(q, max_results=8, timelimit="m"))
-                for r in search_results:
-                    title = r.get("title", "")
-                    body = r.get("body", "")
+                for r in list(DDGS().text(q, max_results=8, timelimit="m")):
+                    snippet = f"{r.get('title', '')} {r.get('body', '')}"
                     url = r.get("href", "")
-                    snippet = f"{title} {body}"
-
-                    site_label = _classify_url(url) or "Genel Web"
-
-                    found_names = _extract_names(snippet)
-                    for name, match_type, confidence in found_names:
-                        all_names.append({
-                            "name": name,
-                            "source": site_label,
-                            "url": url,
-                            "confidence": confidence,
-                            "match": match_type,
-                        })
+                    site = _site_label(url) or "Genel Web"
+                    for name, conf in _extract(snippet):
+                        all_hits.append((name, site, url, conf))
             except Exception:
                 pass
 
         seen = set()
-        unique_names = []
-        for n in all_names:
-            key = n["name"].lower()
+        unique = []
+        for name, site, url, conf in all_hits:
+            key = name.lower()
             if key not in seen:
                 seen.add(key)
-                unique_names.append(n)
+                unique.append((name, site, url, conf))
 
-        if not unique_names:
-            results.append(("Uyarı", "  ℹ️ Web aramasında isim bulunamadı"))
-            results.append(("Bilgi", "    • Bu numara ile ilgili halka açık kayıt bulunamadı"))
-            results.append(("Bilgi", "    • Numarayı tırnak içinde manuel olarak Google'da aratmayı dene"))
+        if unique:
+            results.append(("Başarılı", f"  ✅ {len(unique)} potansiyel eşleşme"))
+            for name, site, url, conf in unique[:8]:
+                icon = "🟢" if conf == "Yüksek" else "🟡" if conf == "Orta" else "⚪"
+                results.append(("Bilgi", f"  {icon} {name}"))
+                results.append(("Bilgi", f"     📍 {site} | Güven: {conf}"))
+                if url:
+                    results.append(("Bilgi", f"     🔗 {url[:100]}"))
         else:
-            results.append(("Başarılı", f"  ✅ {len(unique_names)} potansiyel eşleşme bulundu"))
-            for n in unique_names[:10]:
-                icon = "🟢" if n["confidence"] == "Yüksek" else "🟡" if n["confidence"] == "Orta" else "⚪"
-                results.append(("Bilgi", f"  {icon} {n['name']}"))
-                results.append(("Bilgi", f"     📍 {n['source']} | Güven: {n['confidence']}"))
-                if n.get("url"):
-                    short_url = n["url"][:90]
-                    results.append(("Bilgi", f"     🔗 {short_url}"))
+            results.append(("Uyarı", "  ℹ️ Otomatik aramada sonuç bulunamadı"))
+            results.append(("Bilgi", "    • Bu numara web'de halka açık kayıtlarda görünmüyor"))
+            results.append(("Bilgi", "    • Aşağıdaki Google bağlantılarını manuel dene"))
+            results.append(("Bilgi", "    • Truecaller yüklüyse numarayı orada kontrol et"))
 
         if callback:
             callback(results)
