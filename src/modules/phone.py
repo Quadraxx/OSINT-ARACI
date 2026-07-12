@@ -1,3 +1,4 @@
+import re
 import phonenumbers
 from phonenumbers import carrier, geocoder, timezone
 
@@ -11,7 +12,17 @@ class PhoneLookup:
         results.append(("Bilgi", f"📞 {self.name} - Hedef: {target}"))
 
         try:
-            phone = phonenumbers.parse(target, None)
+            cleaned = re.sub(r"[\s\-\(\)\.]", "", target)
+
+            try:
+                phone = phonenumbers.parse(cleaned, None)
+            except phonenumbers.NumberParseException:
+                if cleaned.startswith("0"):
+                    phone = phonenumbers.parse("+90" + cleaned[1:], None)
+                elif cleaned.startswith("00"):
+                    phone = phonenumbers.parse("+" + cleaned[2:], None)
+                else:
+                    phone = phonenumbers.parse(cleaned, "TR")
 
             if not phonenumbers.is_valid_number(phone):
                 results.append(("Hata", "❌ Geçersiz telefon numarası"))
