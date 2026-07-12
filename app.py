@@ -6,6 +6,7 @@ from src.modules.email import EmailLookup
 from src.modules.phone import PhoneLookup
 from src.modules.ip_domain import IPDomainLookup
 from src.utils.helpers import validate_email, validate_phone, validate_ip, validate_domain
+from src.data.countries import COUNTRY_DATA
 
 ctk.set_appearance_mode("dark")
 ctk.set_default_color_theme("dark-blue")
@@ -92,8 +93,19 @@ class OSINTApp(ctk.CTk):
         self.target_entry = ctk.CTkEntry(self.input_frame, placeholder_text="Kullanıcı adı, e-posta, telefon veya IP/domain girin")
         self.target_entry.grid(row=0, column=1, padx=(0, 10), pady=10, sticky="ew")
 
+        self.country_label = ctk.CTkLabel(self.input_frame, text="Ülke:", font=ctk.CTkFont(size=14))
+        self.country_var = ctk.StringVar(value="Otomatik")
+        country_options = ["Otomatik"] + [f"{c['flag']} {c['name']} (+{c['prefix']})" for c in COUNTRY_DATA]
+        self.country_dropdown = ctk.CTkOptionMenu(self.input_frame, values=country_options,
+                                                  variable=self.country_var, width=200)
+        self.country_label.grid(row=0, column=2, padx=(5, 5), pady=10, sticky="w")
+        self.country_dropdown.grid(row=0, column=3, padx=(0, 10), pady=10)
+
         self.run_button = ctk.CTkButton(self.input_frame, text="▶ Başlat", width=100, command=self._run_module)
-        self.run_button.grid(row=0, column=2, padx=(0, 10), pady=10)
+        self.run_button.grid(row=0, column=4, padx=(0, 10), pady=10)
+
+        self.country_label.grid_remove()
+        self.country_dropdown.grid_remove()
 
         self.progress = ctk.CTkProgressBar(self.main_frame, mode="indeterminate")
         self.progress.grid(row=3, column=0, padx=20, pady=(0, 10), sticky="ew")
@@ -116,13 +128,22 @@ class OSINTApp(ctk.CTk):
 
     def _select_module(self, name):
         self.current_module = name
-        self.header_label.configure(text=f"{['🔍','📧','📞','🌐'][['Sosyal Medya','E-posta','Telefon','IP/Domain'].index(name)]} {name}")
+        icons = {"Sosyal Medya": "🔍", "E-posta": "📧", "Telefon": "📞", "IP/Domain": "🌐"}
+        self.header_label.configure(text=f"{icons.get(name, '🔍')} {name}")
         self.desc_label.configure(text=f"{self.modules[name].__class__.__name__} modülü seçildi. Hedef girin ve Başlat'a tıklayın.")
         self.target_entry.delete(0, "end")
         self.target_entry.configure(placeholder_text=self._get_placeholder(name))
         self.results_text.configure(state="normal")
         self.results_text.delete("1.0", "end")
         self.results_text.configure(state="disabled")
+
+        if name == "Telefon":
+            self.country_label.grid()
+            self.country_dropdown.grid()
+            self.country_var.set("Otomatik")
+        else:
+            self.country_label.grid_remove()
+            self.country_dropdown.grid_remove()
 
     def _get_placeholder(self, name):
         placeholders = {
@@ -156,12 +177,23 @@ class OSINTApp(ctk.CTk):
         self.results_text.insert("end", "━" * 50 + "\n\n")
         self.results_text.configure(state="disabled")
 
-        thread = threading.Thread(target=self._run_async, args=(module, target), daemon=True)
+        kwargs = {"target": target, "callback": self._update_results}
+        if self.current_module == "Telefon":
+            country_sel = self.country_var.get()
+            if country_sel != "Otomatik":
+                for c in COUNTRY_DATA:
+                    label = f"{c['flag']} {c['name']} (+{c['prefix']})"
+                    if label == country_sel:
+                        kwargs["country_code"] = c["code"]
+                        break
+
+        thread = threading.Thread(target=self._run_async, kwargs=kwargs, daemon=True)
         thread.start()
 
-    def _run_async(self, module, target):
+    def _run_async(self, **kwargs):
         try:
-            module.run(target, callback=self._update_results)
+            module = self.modules[self.current_module]
+            module.run(**kwargs)
         except Exception as e:
             self._update_results([("Hata", f"❌ Hata oluştu: {str(e)}")])
 

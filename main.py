@@ -45,6 +45,7 @@ def main():
     parser.add_argument("-m", "--module", choices=["social", "email", "phone", "ip", "all"],
                         help="Kullanılacak modül")
     parser.add_argument("-t", "--target", help="Hedef (kullanıcı adı, e-posta, telefon, IP/domain)")
+    parser.add_argument("-c", "--country", help="Ülke kodu (TR, US, GB, DE, ...) - Telefon modülü için")
     parser.add_argument("--list-modules", action="store_true", help="Mevcut modülleri listele")
 
     args = parser.parse_args()
@@ -75,7 +76,10 @@ def main():
         results = EmailLookup().run(args.target)
         cli_print(results)
     if args.module in ("phone", "all"):
-        results = PhoneLookup().run(args.target)
+        kwargs = {"target": args.target}
+        if args.country:
+            kwargs["country_code"] = args.country.upper()
+        results = PhoneLookup().run(**kwargs)
         cli_print(results)
     if args.module in ("ip", "all"):
         results = IPDomainLookup().run(args.target)
