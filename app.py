@@ -94,18 +94,15 @@ class OSINTApp(ctk.CTk):
         self.target_entry.grid(row=0, column=1, padx=(0, 10), pady=10, sticky="ew")
 
         self.country_label = ctk.CTkLabel(self.input_frame, text="Ülke:", font=ctk.CTkFont(size=14))
-        self.country_var = ctk.StringVar(value="Otomatik")
-        country_options = ["Otomatik"] + [f"{c['flag']} {c['name']} (+{c['prefix']})" for c in COUNTRY_DATA]
-        self.country_dropdown = ctk.CTkOptionMenu(self.input_frame, values=country_options,
-                                                  variable=self.country_var, width=200)
+        self.country_entry = ctk.CTkEntry(self.input_frame, placeholder_text="Türkiye, US, DE, ... (boş = otomatik)", width=200)
         self.country_label.grid(row=0, column=2, padx=(5, 5), pady=10, sticky="w")
-        self.country_dropdown.grid(row=0, column=3, padx=(0, 10), pady=10)
+        self.country_entry.grid(row=0, column=3, padx=(0, 10), pady=10)
 
         self.run_button = ctk.CTkButton(self.input_frame, text="▶ Başlat", width=100, command=self._run_module)
         self.run_button.grid(row=0, column=4, padx=(0, 10), pady=10)
 
         self.country_label.grid_remove()
-        self.country_dropdown.grid_remove()
+        self.country_entry.grid_remove()
 
         self.progress = ctk.CTkProgressBar(self.main_frame, mode="indeterminate")
         self.progress.grid(row=3, column=0, padx=20, pady=(0, 10), sticky="ew")
@@ -147,11 +144,11 @@ class OSINTApp(ctk.CTk):
 
         if name == "Telefon":
             self.country_label.grid()
-            self.country_dropdown.grid()
-            self.country_var.set("Otomatik")
+            self.country_entry.grid()
+            self.country_entry.delete(0, "end")
         else:
             self.country_label.grid_remove()
-            self.country_dropdown.grid_remove()
+            self.country_entry.grid_remove()
 
     def _get_placeholder(self, name):
         placeholders = {
@@ -187,13 +184,18 @@ class OSINTApp(ctk.CTk):
 
         kwargs = {"target": target, "callback": self._update_results}
         if self.current_module == "Telefon":
-            country_sel = self.country_var.get()
-            if country_sel != "Otomatik":
+            country_sel = self.country_entry.get().strip()
+            if country_sel:
+                country_sel_upper = country_sel.upper()
+                matched = None
                 for c in COUNTRY_DATA:
-                    label = f"{c['flag']} {c['name']} (+{c['prefix']})"
-                    if label == country_sel:
-                        kwargs["country_code"] = c["code"]
+                    if (c["code"] == country_sel_upper or
+                        c["name"].lower() == country_sel.lower() or
+                        c["name"].lower().startswith(country_sel.lower())):
+                        matched = c["code"]
                         break
+                if matched:
+                    kwargs["country_code"] = matched
 
         thread = threading.Thread(target=self._run_async, kwargs=kwargs, daemon=True)
         thread.start()
