@@ -46,10 +46,10 @@ Bu proje; **sosyal medya**, **e-posta**, **telefon numarası**, **IP adresi**, *
 
 | Modül | Açıklama | Durum |
 |-------|----------|-------|
-| 🔍 **Sosyal Medya** | Kullanıcı adı ve profil araştırması | 🟡 Geliştiriliyor |
-| 📧 **E-posta OSINT** | E-posta doğrulama ve sızıntı kontrolü | 🟡 Geliştiriliyor |
-| 📞 **Telefon OSINT** | Telefon numarası sorgulama ve operatör bilgisi | 🟡 Geliştiriliyor |
-| 🌐 **IP/Domain OSINT** | WHOIS, DNS, IP konum sorgulamaları | 🟡 Geliştiriliyor |
+| 🔍 **Sosyal Medya** | 13 platformda kullanıcı adı taraması | ✅ Çalışıyor |
+| 📧 **E-posta OSINT** | Doğrulama + MX kaydı + veri ihlali kontrolü | ✅ Çalışıyor |
+| 📞 **Telefon OSINT** | Ülke, operatör, zaman dilimi tespiti | ✅ Çalışıyor |
+| 🌐 **IP/Domain OSINT** | WHOIS, DNS, IP konum, alt domain keşfi | ✅ Çalışıyor |
 
 ---
 
@@ -57,7 +57,8 @@ Bu proje; **sosyal medya**, **e-posta**, **telefon numarası**, **IP adresi**, *
 
 ```
 OSINT-ARACI/
-├── 🚀 main.py                    # Ana giriş noktası (CLI)
+├── 🚀 app.py                     # Ana uygulama (GUI)
+├── 🖥️ main.py                    # CLI versiyonu
 ├── 📦 requirements.txt           # Bağımlılıklar
 ├── 🔒 .gitignore                 # Git için
 ├── 📖 README.md                  # Proje dokümantasyonu
@@ -94,6 +95,14 @@ pip install -r requirements.txt
 ---
 
 ## 💻 Kullanım
+
+### 🖥️ GUI (Önerilen)
+
+```bash
+python app.py
+```
+
+### 💻 CLI
 
 ```bash
 # Modülleri listele
@@ -187,6 +196,9 @@ python main.py -m all -t <hedef>
 | `dnspython` | DNS sorguları |
 | `python-whois` | WHOIS sorguları |
 | `colorama` | Renkli terminal çıktısı |
+| `customtkinter` | Modern GUI arayüzü |
+| `phonenumbers` | Telefon numarası doğrulama ve bilgi çekme |
+| `email-validator` | E-posta formatı doğrulama |
 
 ---
 
@@ -194,10 +206,11 @@ python main.py -m all -t <hedef>
 
 - [x] Proje yapısı oluşturma
 - [x] GitHub repo kurulumu
-- [ ] Sosyal medya modülü geliştirme
-- [ ] E-posta OSINT modülü geliştirme
-- [ ] Telefon OSINT modülü geliştirme
-- [ ] IP/Domain OSINT modülü geliştirme
+- [x] GUI uygulaması (CustomTkinter)
+- [x] Sosyal medya modülü geliştirme
+- [x] E-posta OSINT modülü geliştirme
+- [x] Telefon OSINT modülü geliştirme
+- [x] IP/Domain OSINT modülü geliştirme
 - [ ] Çoklu hedef desteği
 - [ ] Rapor çıktısı (HTML/JSON/PDF)
 - [ ] Web arayüzü (opsiyonel)
