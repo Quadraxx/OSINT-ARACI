@@ -10,14 +10,35 @@ init(autoreset=True)
 
 BANNER = f"""
 {Fore.CYAN}
-  ___  ____ ___ _   _ _____     ___ ___  _   _ _____ 
+  ___  ____ ___ _   _ _____     ___ ___  _   _ _____
  / _ \/ ___|_ _| \ | |_   _|   |_ _/ _ \| \ | | ____|
-| | | \___ \| ||  \| | | |_____ | | | | |  \| |  _|  
-| |_| |___) | || |\  | | |_____| | | |_| | |\  | |___ 
+| | | \___ \| ||  \| | | |_____ | | | | |  \| |  _|
+| |_| |___) | || |\  | | |_____| | | |_| | |\  | |___
  \___/|____/___|_| \_| |_|     |___\___/|_| \_|_____|
 {Style.RESET_ALL}
 {Fore.YELLOW}Her Şeyi Kapsayan OSINT Aracı{Style.RESET_ALL}
 """
+
+COLOR_MAP = {
+    "Başarılı": Fore.GREEN,
+    "Hata": Fore.RED,
+    "Uyarı": Fore.YELLOW,
+    "Bilgi": Fore.CYAN,
+    "section": Fore.MAGENTA,
+}
+
+def cli_print(results):
+    for result_type, message in results:
+        color = COLOR_MAP.get(result_type, Fore.WHITE)
+        if result_type == "section":
+            if any(c in message for c in "━─"):
+                print(f"{Fore.MAGENTA}{message}{Style.RESET_ALL}")
+            elif message == "":
+                print()
+            else:
+                print(f"{Fore.WHITE}{Style.BRIGHT}{message}{Style.RESET_ALL}")
+        else:
+            print(f"{color}{message}{Style.RESET_ALL}")
 
 def main():
     parser = argparse.ArgumentParser(description="OSINT ARACI - Kapsamlı Açık Kaynak İstihbarat Aracı")
@@ -25,7 +46,7 @@ def main():
                         help="Kullanılacak modül")
     parser.add_argument("-t", "--target", help="Hedef (kullanıcı adı, e-posta, telefon, IP/domain)")
     parser.add_argument("--list-modules", action="store_true", help="Mevcut modülleri listele")
-    
+
     args = parser.parse_args()
 
     if args.list_modules:
@@ -48,13 +69,17 @@ def main():
     print(f"{Fore.GREEN}[*] Modül: {args.module or 'tümü'}{Style.RESET_ALL}\n")
 
     if args.module in ("social", "all"):
-        SocialMedia().run(args.target)
+        results = SocialMedia().run(args.target)
+        cli_print(results)
     if args.module in ("email", "all"):
-        EmailLookup().run(args.target)
+        results = EmailLookup().run(args.target)
+        cli_print(results)
     if args.module in ("phone", "all"):
-        PhoneLookup().run(args.target)
+        results = PhoneLookup().run(args.target)
+        cli_print(results)
     if args.module in ("ip", "all"):
-        IPDomainLookup().run(args.target)
+        results = IPDomainLookup().run(args.target)
+        cli_print(results)
 
 if __name__ == "__main__":
     main()

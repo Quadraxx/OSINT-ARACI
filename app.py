@@ -168,7 +168,14 @@ class OSINTApp(ctk.CTk):
     def _update_results(self, results):
         self.results_text.configure(state="normal")
         for result_type, message in results:
-            if result_type == "Başarılı":
+            if result_type == "section":
+                if message and all(c in "━─═" for c in message.strip()):
+                    tag = "section_sep"
+                elif message == "":
+                    tag = "section_empty"
+                else:
+                    tag = "section_header"
+            elif result_type == "Başarılı":
                 tag = "success"
             elif result_type == "Hata":
                 tag = "error"
@@ -177,13 +184,14 @@ class OSINTApp(ctk.CTk):
             else:
                 tag = "info"
             self.results_text.insert("end", message + "\n", tag)
-        self.results_text.insert("end", "\n" + "━" * 50 + "\n")
-        self.results_text.see("end")
 
         self.results_text.tag_config("success", foreground="#4CAF50")
         self.results_text.tag_config("error", foreground="#F44336")
         self.results_text.tag_config("warning", foreground="#FF9800")
         self.results_text.tag_config("info", foreground="#2196F3")
+        self.results_text.tag_config("section_sep", foreground="#555555")
+        self.results_text.tag_config("section_empty", foreground="", spacing1=0, spacing2=0)
+        self.results_text.tag_config("section_header", foreground="#FFFFFF", font=ctk.CTkFont(size=13, weight="bold"))
 
         self.results_text.configure(state="disabled")
 
