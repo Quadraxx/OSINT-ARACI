@@ -4,6 +4,7 @@ import urllib.parse
 import phonenumbers
 from phonenumbers import carrier, geocoder, timezone
 from src.data.countries import COUNTRY_DATA, COUNTRY_MAP
+from src.modules.name_scanner import NameScanner
 
 SEP = "━" * 48
 SEP2 = "─" * 48
@@ -263,6 +264,19 @@ class PhoneLookup:
                 q = f"{doc_query} {e164}"
                 url = _gs_url(q)
                 results.append(("Bilgi", f"    • {doc_name}: {url}"))
+
+            # ── İSİM / KİMLİK TARAMASI ──
+            results.append(("section", ""))
+            results.append(("section", "👤 İSİM / KİMLİK TARAMASI"))
+            results.append(("section", SEP2))
+            results.append(("Bilgi", "  🔍 Web'de aranıyor... (DuckDuckGo)"))
+
+            name_formats = [e164, intl, nat, raw, f'"{e164}"', f'"{nat}"', f'"{raw}"']
+            ns = NameScanner()
+            name_results = ns.scan(name_formats)
+            for r in name_results:
+                results.append(r)
+            results.append(("section", ""))
 
             # ── RİSK ANALİZİ ──
             results.append(("section", ""))
