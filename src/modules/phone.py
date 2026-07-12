@@ -1,4 +1,5 @@
 import re
+import time
 import urllib.parse
 import phonenumbers
 from phonenumbers import carrier, geocoder, timezone
@@ -60,10 +61,19 @@ REPUTASYON = {
 
 BELGELER = {
     "Pastebin": "site:pastebin.com",
-    "PDF Belgeleri": 'ext:pdf OR ext:doc OR ext:docx OR ext:xls OR ext:csv',
-    "Forumlar": 'site:forum.donanimhaber.com OR site:eksisozluk.com OR site:r10.net',
-    "İlan Siteleri": 'site:sahibinden.com OR site:hepsiburada.com OR site:n11.com',
+    "PDF Belgeleri": "ext:pdf OR ext:doc OR ext:docx OR ext:xls OR ext:csv",
+    "Forumlar": "site:forum.donanimhaber.com OR site:eksisozluk.com OR site:r10.net",
+    "İlan Siteleri": "site:sahibinden.com OR site:hepsiburada.com OR site:n11.com",
 }
+
+DORKLAR = [
+    ("Ülke Bazlı Tarama", "site:*.tr"),
+    ("Devlet Siteleri", "site:gov.tr"),
+    ("Eğitim Kurumları", "site:edu.tr"),
+    ("Organizasyonlar", "site:org.tr"),
+    ("Başlıkta Ara", "intitle"),
+    ("Metin İçinde Ara", "intext"),
+]
 
 V = lambda l, v: f"{l:24}: {v}"
 
@@ -88,15 +98,12 @@ def _q_quoted(s):
     return f'"{s}"'
 
 
-def _q_raw(s):
-    return re.sub(r"\D", "", s)
-
-
 class PhoneLookup:
     def __init__(self):
         self.name = "Telefon Numarası OSINT"
 
     def run(self, target, callback=None, country_code=None):
+        basla = time.time()
         results = []
         results.append(("section", "📞 PHONE ANALYZER"))
         results.append(("section", SEP))
@@ -140,7 +147,7 @@ class PhoneLookup:
                 results.append(("Hata", V("📌 Girilen", target)))
                 results.append(("Hata", V("❌ Geçerli", "Hayır")))
                 if is_possible:
-                    results.append(("Uyarı", V("⚠️ Mümkün", "Evet (geçersiz format)")))
+                    results.append(("Uyarı", V("⚠️ Atanabilir", "Evet (geçersiz format)")))
                 if callback:
                     callback(results)
                 return results
@@ -157,6 +164,7 @@ class PhoneLookup:
 
             num_type = phonenumbers.number_type(parsed)
             type_name = NUMBER_TYPES.get(num_type, "Bilinmeyen")
+            is_voip = num_type == phonenumbers.PhoneNumberType.VOIP
 
             # ── TEMEL BİLGİLER ──
             results.append(("section", ""))
@@ -164,34 +172,29 @@ class PhoneLookup:
             results.append(("section", SEP2))
             results.append(("Başarılı", V("📌 Hedef", target)))
             results.append(("Başarılı", V("✅ Geçerli", "Evet")))
-            results.append(("Başarılı", V("✅ Mümkün", "Evet")))
+            results.append(("Başarılı", V("✅ Atanabilir", "Evet")))
             results.append(("Başarılı", V("📱 Numara Türü", type_name)))
             results.append(("Başarılı", V("📡 Hat Sınıfı", HAT_SINIFI.get(type_name, "Bilinmiyor"))))
             results.append(("Başarılı", V(f"{flag} Ülke", f"{flag} {cname_tr} ({cname_en})")))
             results.append(("Başarılı", V("📞 Ülke Kodu", f"+{cc_val}")))
 
-            # Operatör
+            # Operatör (prefix tabanlı = orijinal blok)
             blok_operator = ""
             if cc_val == 90:
                 prefix = raw[1:4] if len(raw) >= 4 else ""
                 blok_operator = TR_BLOK.get(prefix, "")
             c_operator = carrier.name_for_number(parsed, "tr")
 
-            if blok_operator and c_operator and blok_operator == c_operator:
-                results.append(("Başarılı", V("🏢 Operatör", blok_operator)))
+            if blok_operator:
+                results.append(("Başarılı", V("🏢 Numara Bloğu", blok_operator)))
+            elif c_operator:
+                results.append(("Başarılı", V("🏢 Numara Bloğu", c_operator)))
             else:
-                if blok_operator:
-                    results.append(("Başarılı", V("🏢 Numara Bloğu", blok_operator)))
-                if c_operator:
-                    results.append(("Başarılı", V("🔄 Güncel Operatör", c_operator)))
-                    results.append(("Uyarı", V("ℹ️ Açıklama", "Numara taşınmış olabilir")))
-                elif blok_operator:
-                    results.append(("Uyarı", V("🔄 Güncel Operatör", "Bilinmiyor")))
-                    results.append(("Uyarı", V("ℹ️ Açıklama", "Numara taşınmış olabilir")))
-            if not blok_operator and not c_operator:
-                c_operator = carrier.name_for_number(parsed, "en")
-                if c_operator:
-                    results.append(("Başarılı", V("🏢 Operatör", c_operator)))
+                c_op_en = carrier.name_for_number(parsed, "en")
+                if c_op_en:
+                    results.append(("Başarılı", V("🏢 Numara Bloğu", c_op_en)))
+            results.append(("Uyarı", V("🔄 Güncel Operatör", "Doğrulanamadı")))
+            results.append(("Uyarı", V("ℹ️ Not", "Numara taşınmış olabilir (offline doğrulama)")))
 
             tz_list = timezone.time_zones_for_number(parsed)
             if tz_list:
@@ -208,12 +211,27 @@ class PhoneLookup:
             if detected and detected.get("format"):
                 results.append(("Bilgi", V("📋 Beklenen Format", detected["format"])))
 
+            # ── GOOGLE DORKLAR ──
+            results.append(("section", ""))
+            results.append(("section", "🔎 GOOGLE DORKLAR"))
+            results.append(("section", SEP2))
+            for label, dork in DORKLAR:
+                if dork.startswith("site:"):
+                    q = f"{dork} {e164}"
+                elif dork == "intitle":
+                    q = f'intitle:"{e164}"'
+                elif dork == "intext":
+                    q = f'intext:"{e164}"'
+                else:
+                    q = dork
+                url = _gs_url(q)
+                results.append(("Bilgi", f"  • {label}: {url}"))
+
             # ── OSINT ARAMA BAĞLANTILARI ──
             results.append(("section", ""))
             results.append(("section", "🔗 OSINT ARAMA BAĞLANTILARI"))
             results.append(("section", SEP2))
 
-            # Çoklu format
             formats = [e164, intl, nat, raw]
             formats_quoted = [_q_quoted(f) for f in [intl, nat]]
             formats_raw = [_q_quoted(f) for f in [raw]]
@@ -226,7 +244,6 @@ class PhoneLookup:
                 results.append(("Bilgi", f"    • {q}"[:80]))
                 results.append(("Bilgi", f"      {url}"))
 
-            # Site bazlı
             results.append(("section", ""))
             results.append(("section", "  📱 SİTE BAZLI ARAMALAR"))
             for site_name, site_query in SITE_ARAMALARI.items():
@@ -234,20 +251,47 @@ class PhoneLookup:
                 url = _gs_url(q)
                 results.append(("Bilgi", f"    • {site_name}: {url}"))
 
-            # Reputasyon
             results.append(("section", ""))
             results.append(("section", "  ⚠️ İHBAR / REPUTASYON"))
             for name, tpl in REPUTASYON.items():
                 url = tpl.format(raw, e164, intl, raw)
                 results.append(("Uyarı", f"    • {name}: {url}"))
 
-            # Belgeler
             results.append(("section", ""))
             results.append(("section", "  📄 AÇIK BELGELER VE PAYLAŞIMLAR"))
             for doc_name, doc_query in BELGELER.items():
                 q = f"{doc_query} {e164}"
                 url = _gs_url(q)
                 results.append(("Bilgi", f"    • {doc_name}: {url}"))
+
+            # ── RİSK ANALİZİ ──
+            results.append(("section", ""))
+            results.append(("section", "⚠️ RİSK ANALİZİ"))
+            results.append(("section", SEP2))
+
+            risk = 0
+            if is_valid:
+                risk += 10
+            if type_name == "Mobil":
+                risk += 20
+            elif type_name == "Sabit Hat":
+                risk += 35
+            elif is_voip:
+                risk += 50
+            if cc_val == 90:
+                risk += 15
+            if blok_operator:
+                risk -= 5
+            risk = max(0, min(100, risk))
+
+            results.append(("Bilgi", V("⚠️ VoIP", "Evet" if is_voip else "Hayır")))
+            results.append(("Bilgi", V("🔄 Numara Taşınabilir", "Evet" if cc_val == 90 else "Bilinmiyor")))
+
+            bar_len = 20
+            filled = round(risk / 100 * bar_len)
+            bar = "█" * filled + "░" * (bar_len - filled)
+            results.append(("Uyarı", V("📊 Risk Skoru", f"%{risk}")))
+            results.append(("Uyarı", f"  {bar}  {risk}%"))
 
             # ── KAYNAK GÜVENİ ──
             results.append(("section", ""))
@@ -264,6 +308,22 @@ class PhoneLookup:
             for label, level in trust_items:
                 icon = "🟢" if level == "Yüksek" else "🟡" if "Orta" in level else "🔴" if "Doğrulanmadı" in level else "⚪"
                 results.append(("Bilgi", f"  {icon} {label:30} {level}"))
+
+            # ── ANALİZ ÖZETİ ──
+            sure = time.time() - basla
+            results.append(("section", ""))
+            results.append(("section", "📊 ANALİZ ÖZETİ"))
+            results.append(("section", SEP2))
+            results.append(("Başarılı", "  ✔ Numara Geçerli"))
+            results.append(("Başarılı", f"  ✔ {type_name} Hat"))
+            results.append(("Başarılı", f"  ✔ {flag} {cname_tr} (+{cc_val})"))
+            if blok_operator:
+                results.append(("Başarılı", f"  ✔ Numara Bloğu: {blok_operator}"))
+            results.append(("Başarılı", "  ✔ OSINT Bağlantıları Oluşturuldu"))
+            results.append(("Başarılı", "  ✔ Açık Kaynak Aramaya Hazır"))
+            results.append(("Bilgi", f"  ⏱ Analiz Süresi: {sure:.2f} saniye"))
+            results.append(("Bilgi", f"  📦 Oluşturulan Bağlantı: {len(all_q) + len(SITE_ARAMALARI) + len(REPUTASYON) + len(BELGELER) + len(DORKLAR)}"))
+            results.append(("Bilgi", "  🛰 Kullanılan Kaynak: phonenumbers (offline)"))
 
         except phonenumbers.NumberParseException as e:
             results.append(("section", ""))
